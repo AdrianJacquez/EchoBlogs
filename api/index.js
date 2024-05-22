@@ -2,10 +2,14 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const User = require("./models/User");
+const Post = require("./models/Post");
 const bcrypt = require("bcryptjs");
 const app = express();
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
+const multer = require("multer");
+const uploadMiddleware = multer({ dest: "uploads/" });
+const fs = require("fs");
 
 const salt = bcrypt.genSaltSync(10);
 const secret = "abcdefghijklmnñopqrstuvwxyz";
@@ -63,6 +67,37 @@ app.get("/profile", (req, res) => {
 
 app.post("/logout", (req, res) => {
   res.cookie("token", "").json("ok");
+});
+
+app.post("/post", uploadMiddleware.single("files"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const { originalname, path } = req.file;
+    console.log("File uploaded:", originalname, path); // Log del archivo recibido
+
+    const parts = originalname.split(".");
+    const ext = parts[parts.length - 1];
+    const newPath = `${path}.${ext}`;
+
+    fs.renameSync(path, newPath);
+
+    const { title, summary, content } = req.body;
+    const postDoc = await Post.create({
+      title,
+      summary,
+      content,
+      cover: newPath,
+    });
+    // Lógica adicional, como guardar en la base de datos
+
+    res.status(200).json({ message: "Post created successfully!", postDoc });
+  } catch (error) {
+    console.error("Error handling /post request:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
 });
 
 app.listen(4000, () => {
